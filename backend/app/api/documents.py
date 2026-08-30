@@ -18,27 +18,27 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 @router.post("/upload")
 async def upload_document(
-    file: UploadFile = File(...)
+    document: UploadFile = File(...)
 ):
-    if not file.filename:
+    if not document.filename:
         raise HTTPException(
             status_code=400,
             detail="No file provided.",
         )
 
-    if not file.filename.lower().endswith(".pdf"):
+    if not document.filename.lower().endswith(".pdf"):
         raise HTTPException(
             status_code=400,
             detail="Only PDF files are supported.",
         )
 
-    file_path = UPLOAD_DIR / file.filename
+    document_path = UPLOAD_DIR / document.filename
 
     try:
-        with file_path.open("wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        with document_path.open("wb") as buffer:
+            shutil.copyfileobj(document.file, buffer)
 
-        result = process_pdf(str(file_path))
+        result = process_pdf(str(document_path))
 
         return {
             "message": "PDF processed successfully.",
@@ -52,4 +52,4 @@ async def upload_document(
         )
 
     finally:
-        file.file.close()
+        document.file.close()

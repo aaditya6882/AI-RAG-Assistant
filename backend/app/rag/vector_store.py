@@ -1,6 +1,6 @@
-import psycopg
+import psycopg  # pyright: ignore[reportMissingImports]
 
-from pgvector.psycopg import register_vector
+from pgvector.psycopg import register_vector  # pyright: ignore[reportMissingImports]
 
 from app.config import DATABASE_URL
 

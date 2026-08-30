@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader  # pyright: ignore[reportMissingImports]
 
 
 def load_pdf(file_path: str):

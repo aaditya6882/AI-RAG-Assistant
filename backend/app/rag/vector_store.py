@@ -55,3 +55,28 @@ def save_chunks(
                 )
 
         connection.commit()
+def search_similar_chunks(
+    query_embedding: list[float],
+    limit: int = 5,
+):
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    document_name,
+                    content,
+                    page_number,
+                    chunk_index,
+                    embedding <=> %s::vector AS distance
+                FROM document_chunks
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s
+                """,
+                (
+                    query_embedding,
+                    query_embedding,
+                    limit,
+                ),
+            )
+            return cursor.fetchall()

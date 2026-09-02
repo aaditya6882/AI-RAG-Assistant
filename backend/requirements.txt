@@ -11,4 +11,5 @@ langchain-postgres
 
 pypdf
 psycopg[binary]
+pgvector
 sqlalchemy

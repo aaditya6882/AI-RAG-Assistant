@@ -3,6 +3,7 @@ import shutil
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from app.rag.vector_store import list_documents
 from app.services.document_service import process_pdf
 
 
@@ -10,6 +11,17 @@ router = APIRouter(
     prefix="/api/documents",
     tags=["Documents"],
 )
+
+
+@router.get("/")
+def get_documents():
+    try:
+        return {"documents": list_documents()}
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=str(error),
+        )
 
 
 UPLOAD_DIR = Path("uploads")

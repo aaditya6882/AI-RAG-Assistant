@@ -55,20 +55,17 @@ def answer_question(question: str, limit: int = 5):
         """
     )
 
-    # Retrieve documents and create context
     retrieval_chain = (
-    RunnablePassthrough.assign(
-        documents=lambda x: retriever.invoke(x["question"])
+        RunnablePassthrough.assign(
+            documents=lambda x: retriever.invoke(x["question"])
+        ).assign(
+            context=lambda x: format_documents(x["documents"])
+        )
     )
-    .assign(
-        context=lambda x: format_documents(x["documents"])
-    )
-)
 
-    # Run retrieval
     result = retrieval_chain.invoke({
-    "question": question
-})
+        "question": question,
+    })
 
     # Check if documents were found
     if not result["documents"]:

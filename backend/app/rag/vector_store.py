@@ -2,15 +2,59 @@ import psycopg  # pyright: ignore[reportMissingImports]
 
 from pgvector.psycopg import register_vector  # pyright: ignore[reportMissingImports]
 
-from app.config import DATABASE_URL
+from app.config import PSYCOPG_DATABASE_URL
 
 
 def get_connection():
-    connection = psycopg.connect(DATABASE_URL)
+    connection = psycopg.connect(PSYCOPG_DATABASE_URL, connect_timeout=5)
 
     register_vector(connection)
 
     return connection
+
+
+def init_schema():
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS document_chunks (
+                    id SERIAL PRIMARY KEY,
+                    document_name TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    page_number INTEGER,
+                    chunk_index INTEGER,
+                    embedding vector(768)
+                )
+                """
+            )
+        connection.commit()
+
+
+def list_documents():
+    init_schema()
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    document_name,
+                    COUNT(*) AS chunks,
+                    MAX(page_number) AS pages
+                FROM document_chunks
+                GROUP BY document_name
+                ORDER BY document_name
+                """
+            )
+            return [
+                {
+                    "document": row[0],
+                    "chunks": row[1],
+                    "pages": row[2],
+                }
+                for row in cursor.fetchall()
+            ]
 
 
 def save_chunks(
@@ -22,6 +66,8 @@ def save_chunks(
         raise ValueError(
             "Number of documents and embeddings must be the same."
         )
+
+    init_schema()
 
     with get_connection() as connection:
         with connection.cursor() as cursor:
@@ -55,6 +101,8 @@ def save_chunks(
                 )
 
         connection.commit()
+
+
 def search_similar_chunks(
     query_embedding: list[float],
     limit: int = 5,

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI RAG Assistant</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a222c;
+      --border: #2a3644;
+      --text: #e8eef4;
+      --muted: #8b9aab;
+      --accent: #4f8cff;
+      --accent-dim: #2c5cb0;
+      --user: #243044;
+      --bot: #1e2a24;
+      --error: #f07178;
+      --ok: #7fd99a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      height: 100vh;
+    }
+
+    aside {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 4px;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .upload {
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .upload input { display: none; }
+
+    button, label.btn {
+      display: inline-block;
+      background: var(--accent);
+      color: white;
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:disabled, label.btn:has(+ input:disabled) {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    button.ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .status {
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 18px;
+    }
+
+    .status.error { color: var(--error); }
+    .status.ok { color: var(--ok); }
+
+    .docs {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      overflow: auto;
+      flex: 1;
+    }
+
+    .docs li {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .docs small { color: var(--muted); }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .messages {
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .empty {
+      margin: auto;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .msg {
+      max-width: 720px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: var(--user);
+    }
+
+    .msg.bot {
+      align-self: flex-start;
+      background: var(--bot);
+      border: 1px solid var(--border);
+    }
+
+    .sources {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .sources span {
+      display: inline-block;
+      margin: 4px 6px 0 0;
+      padding: 2px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+
+    form.composer {
+      display: flex;
+      gap: 8px;
+      padding: 16px 24px 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    form.composer input[type="text"] {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 15px;
+    }
+
+    form.composer input[type="text"]:focus {
+      outline: 2px solid var(--accent-dim);
+    }
+
+    @media (max-width: 800px) {
+      .app { grid-template-columns: 1fr; }
+      aside { border-right: 0; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div>
+        <h1>AI RAG Assistant</h1>
+        <p class="sub">Upload a PDF, then ask questions about it.</p>
+      </div>
+
+      <div class="upload">
+        <label class="btn" for="file">Choose PDF</label>
+        <input id="file" type="file" accept="application/pdf,.pdf" />
+        <p class="status" id="file-name">No file selected</p>
+        <button id="upload-btn" type="button">Upload & process</button>
+        <p class="status" id="upload-status"></p>
+      </div>
+
+      <div>
+        <strong>Documents</strong>
+        <ul class="docs" id="docs"></ul>
+      </div>
+    </aside>
+
+    <main>
+      <div class="messages" id="messages">
+        <div class="empty" id="empty">Ask a question after a PDF has been processed.</div>
+      </div>
+      <form class="composer" id="chat-form">
+        <input id="question" type="text" placeholder="Ask a question…" autocomplete="off" />
+        <button type="submit" id="ask-btn">Ask</button>
+      </form>
+    </main>
+  </div>
+
+  <script>
+    const docsEl = document.getElementById("docs");
+    const messagesEl = document.getElementById("messages");
+    const emptyEl = document.getElementById("empty");
+    const fileInput = document.getElementById("file");
+    const fileName = document.getElementById("file-name");
+    const uploadBtn = document.getElementById("upload-btn");
+    const uploadStatus = document.getElementById("upload-status");
+    const chatForm = document.getElementById("chat-form");
+    const questionEl = document.getElementById("question");
+    const askBtn = document.getElementById("ask-btn");
+
+    function setStatus(el, text, kind) {
+      el.textContent = text;
+      el.className = "status" + (kind ? " " + kind : "");
+    }
+
+    async function readError(res) {
+      try {
+        const data = await res.json();
+        return data.detail || JSON.stringify(data);
+      } catch {
+        return res.statusText;
+      }
+    }
+
+    async function loadDocuments() {
+      docsEl.innerHTML = "";
+      try {
+        const res = await fetch("/api/documents/");
+        if (!res.ok) throw new Error(await readError(res));
+        const data = await res.json();
+        if (!data.documents || data.documents.length === 0) {
+          docsEl.innerHTML = "<li><small>No documents yet.</small></li>";
+          return;
+        }
+        for (const doc of data.documents) {
+          const li = document.createElement("li");
+          li.innerHTML =
+            "<div>" + escapeHtml(doc.document) + "</div>" +
+            "<small>" + (doc.pages || 0) + " pages · " + doc.chunks + " chunks</small>";
+          docsEl.appendChild(li);
+        }
+      } catch (err) {
+        docsEl.innerHTML = "<li><small>Could not load documents.</small></li>";
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function addMessage(role, text, sources) {
+      if (emptyEl) emptyEl.remove();
+      const div = document.createElement("div");
+      div.className = "msg " + role;
+      div.textContent = text;
+      if (sources && sources.length) {
+        const wrap = document.createElement("div");
+        wrap.className = "sources";
+        wrap.textContent = "Sources: ";
+        for (const src of sources) {
+          const chip = document.createElement("span");
+          chip.textContent =
+            (src.document || "document") +
+            (src.page != null ? " p." + src.page : "") +
+            (src.chunk != null ? " #" + src.chunk : "");
+          wrap.appendChild(chip);
+        }
+        div.appendChild(wrap);
+      }
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    fileInput.addEventListener("change", () => {
+      fileName.textContent = fileInput.files[0]
+        ? fileInput.files[0].name
+        : "No file selected";
+    });
+
+    uploadBtn.addEventListener("click", async () => {
+      const file = fileInput.files[0];
+      if (!file) {
+        setStatus(uploadStatus, "Choose a PDF first.", "error");
+        return;
+      }
+
+      const body = new FormData();
+      body.append("document", file);
+      uploadBtn.disabled = true;
+      setStatus(uploadStatus, "Processing PDF… this can take a minute.");
+
+      try {
+        const res = await fetch("/api/documents/upload", {
+          method: "POST",
+          body,
+        });
+        if (!res.ok) throw new Error(await readError(res));
+        const data = await res.json();
+        setStatus(
+          uploadStatus,
+          data.document + " · " + data.pages + " pages · " + data.chunks + " chunks",
+          "ok"
+        );
+        await loadDocuments();
+      } catch (err) {
+        setStatus(uploadStatus, err.message, "error");
+      } finally {
+        uploadBtn.disabled = false;
+      }
+    });
+
+    chatForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const question = questionEl.value.trim();
+      if (!question) return;
+
+      addMessage("user", question);
+      questionEl.value = "";
+      askBtn.disabled = true;
+
+      try {
+        const res = await fetch("/api/chat/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question, limit: 5 }),
+        });
+        if (!res.ok) throw new Error(await readError(res));
+        const data = await res.json();
+        addMessage("bot", data.answer, data.sources);
+      } catch (err) {
+        addMessage("bot", "Error: " + err.message);
+      } finally {
+        askBtn.disabled = false;
+        questionEl.focus();
+      }
+    });
+
+    loadDocuments();
+  </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.services.rag_service import answer_question  # pyright: ignore[reportMissingImports]
+from app.services.rag_service import answer_question
 
 
 router = APIRouter(
@@ -24,7 +24,13 @@ def chat(request: ChatRequest):
             detail="Question cannot be empty.",
         )
 
-    return answer_question(
-        request.question,
-        limit=request.limit,
-    )
+    try:
+        return answer_question(
+            request.question,
+            limit=request.limit,
+        )
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=str(error),
+        )
